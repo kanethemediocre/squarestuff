@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Kane's crude proto-game v32</title>
+    <style></style>
+</head>
+
+<body>
+    <canvas id="gameCanvas" width="1600" height="900"></canvas>
+    <script>
+        // declare variables
+        const FPS = 30;
+        var canvas, context; 
+		var score = 0;
+		var bonustime = 0; //Timer (in frames) used to describe time left in bonus
+		var bonustype = 0; //Tracks bonus state, 0 is no bonus
+		canvas = document.getElementById("gameCanvas");      // load canvas
+        context = canvas.getContext("2d");
+        setInterval(update, 1000 / FPS);    		// set up interval (game loop)
+		thrustmultiplier = 1; //Used with an option to make thrusters more powerful/sensitive (Z)
+		class Sprite {
+		constructor(xxx, yyy, sss, ccc) {
+		this.x = xxx; //x
+		this.y = yyy; //y
+		this.s = sss; //size
+		this.c = ccc ; //color
+		this.vx = 0;//start with 0 velocity
+		this.vy = 0;
+		this.xreset = -100;
+		this.yreset = -100;  // Default behavior is to place killed sprites offscreen
+		}
+		draw(){
+		context.fillStyle = this.c; //color specified
+        context.fillRect(this.x-this.s/2, this.y-this.s/2, this.s, this.s);	
+		}
+		
+		update(){
+		this.x = this.x + this.vx; //Increments position according to velocity.
+		this.y = this.y + this.vy;
+		}
+		
+		collide(checkedsprite){  //Checks if this overlaps checkedsprite
+		var dx = checkedsprite.x - this.x; //x position difference
+		var dy = checkedsprite.y - this.y; //y position difference
+		var meansize = (checkedsprite.s + this.s)/2;  //total size
+		if (((dx < meansize) && (dx > -1*meansize )) && ((dy < meansize) && (dy > -1*meansize ))){
+				return 1; 
+				} else {return 0;}
+		}
+		
+		kill(){
+		this.x=this.xreset;  //Resets position (usually offscreen)
+		this.y=this.yreset;
+		this.vx = 0;         //resets velocity
+		this.vy = 0;
+		}
+		
+		randomize(xmax, ymax, vmax){ //This function randomizes location and velocity.
+		this.x = this.s/2+Math.random()*(xmax - this.s/2); //Size is taken into account so items are
+		this.y = this.s/2+Math.random()*(ymax - this.s/2); //not spawned partly out of bounds.
+		this.vx = 2*(Math.random()*(vmax) - vmax/2); //Negative numbers are negative direction.
+		this.vy = 2*(Math.random()*(vmax) - vmax/2);
+		}
+		
+		boundarybounce(xmax, ymax){ //Bounces off walls of rectangle from 0,0 to xmax, ymax
+			if ((this.x < this.s/2) || (this.x > xmax-this.s/2)){
+			this.vx = -1*this.vx; //X wall collision for sprite
+			return 1;
+			}else if ((this.y < this.s/2) || (this.y > ymax-this.s/2)){
+			this.vy = -1*this.vy;  //Y wall collision for sprite
+			return 1;
+			} else {return 0;}
+		}
+		boundarykill(xmax, ymax){ //Bounces off walls of rectangle from 0,0 to xmax, ymax
+			if ((this.x < this.s/2) || (this.x > xmax-this.s/2)){
+			this.kill();			//X wall collision for sprite
+			return 1;
+			}else if ((this.y < this.s/2) || (this.y > ymax-this.s/2)){
+			this.kill();			//Y wall collision for sprite
+			return 1;
+			} else {return 0;}
+		}
+		}
+			
+		let ball = new Sprite(canvas.width/2, canvas.height/2, 40, "yellow"); //start in middle, size 40, yellow
+		let ship = new Sprite(canvas.width/2+100, canvas.height/2,20, "blue");
+		let bomb = new Sprite(-100,-100,12, "red");   
+		let bonus = new Sprite(-100,-100,40, "purple");   
+		ball.randomize(canvas.width, canvas.height, 5);
+		ship.xreset = canvas.width/2+200;  //Ship is put back into play rather than off screen
+		ship.yreset = canvas.height/2;
+		
+        if (Math.floor(Math.random() * 2) == 0) {
+            ball.vx = -1*ball.vx; //Random X direction
+        }
+        if (Math.floor(Math.random() * 2) == 0) {
+            ball.vy = -1*ball.vy; //random y direction
+        }
+
+        function update() { //game loop
+			ball.update(); //moves the sprites according to their velocities
+			ship.update();
+			bomb.update(); 
+			bonus.update();
+			if ((bonustime <0) && (bonustype > 0)){
+				bonustype = 0; //This eliminates bonus effects when the timer ends
+				bonus.kill(); //This includes the bonus state where the bonus is waiting to be picked up.
+				}else {
+				bonustime = bonustime - 1; //decrement the timer only when >0.  Prevents underflow.
+				}
+			if ((ship.collide(bonus) == 1)&&(bonustype == 5)){
+				bonustype = Math.floor(Math.random()*4+1);
+				//bonustype = 2;
+				if (bonustype == 4){
+					score = score + 100; //bonus type 4 gives the player even more points.
+					bonus.kill();
+					bonustype = 0;
+					}
+				if (bonustype == 3){
+					score = score + 25;//Bonus type 3 gives the player points
+					bonus.kill();
+					bonustype = 0;
+					}
+				if (bonustype == 2){
+					bonustime = 800; //Bonus type 2 is allows the player to kill the ball
+					bonus.kill(); //and score by touching the ball with the ship.
+					}
+				if (bonustype == 1){
+				    bonustime = 800; //Bonus type 1 is a "bounce mode" where ship 
+					bonus.kill(); //and bomb can bounce off walls.  Expressed later.
+					}
+				}
+			ball.boundarybounce(canvas.width,canvas.height);
+			context.fillStyle = "black"; //background
+            context.fillRect(0, 0, canvas.width, canvas.height);
+			if (bonustype !== 1 ){
+				bomb.boundarykill(canvas.width,canvas.height); //Kills bomb at border
+				if (ship.boundarykill(canvas.width,canvas.height)==1){
+					score = score - 2; //function call in condition kills the ship, but
+					}; //the score penalty is handled outside.
+			}
+			if (bonustype == 1){
+				bomb.boundarybounce(canvas.width,canvas.height); //Bounces sprites off boundaries
+				ship.boundarybounce(canvas.width,canvas.height); //kills sprites at boundaries.
+				context.fillStyle = "red"; //The screen gets a red outline during bounce mode
+				context.fillRect(0, 0, canvas.width, 3);
+				context.fillStyle = "red"; 
+				context.fillRect(0, canvas.height-3, canvas.width, 3);
+				context.fillStyle = "red"; 
+				context.fillRect(0, 0, 3, canvas.height);
+				context.fillStyle = "red"; 
+				context.fillRect(canvas.width-3, 0, 3, canvas.height);
+			}
+			if (bonustype == 2){
+				ship.c = "green"; //The ship is rendered as green during
+				}else {           //ramming mode.
+				ship.c = "blue";
+				}
+			ball.draw();
+            ship.draw();
+			bomb.draw();
+			bonus.draw();
+			context.fillStyle = "cyan"; //score indicator
+            context.fillRect(score, 0, 2, 12);	
+			
+			context.fillStyle = "white";
+			context.fillText("X",5,10);
+			context.fillStyle = "white";
+			context.fillText("Y",5,25);			
+			context.fillStyle = "white";
+			context.fillText(Math.floor(ship.x),40,10);
+			context.fillStyle = "white";
+			context.fillText(Math.floor(ship.y),40,25);
+			context.fillStyle = "white";
+			context.fillText("Score",5, 45);
+			context.fillStyle = "white";
+			context.fillText(score,40,45);			
+			context.fillStyle = "white";
+			context.fillText("Thrust",5,60);
+			context.fillStyle = "white";
+			context.fillText(thrustmultiplier,40,60);
+			context.fillStyle = "white";
+			context.fillText("Tap arrow keys for movement, spacebar to drop a bomb, and Z key to adjust thrusters",5,canvas.height-20);
+			context.fillStyle = "white";
+			context.fillText("CHEATS:  B for a bounce mode bonus, C for a contact-kill bonus, or D to double the size of the ball.",5,canvas.height-10);
+			if (ball.collide(bomb) == 1) {  //Hit!
+				let explosion = new Sprite(bomb.x, bomb.y, 160, "orange"); 
+				explosion.draw(); //bomb explodes
+				bomb.kill(); //replaced by explosion
+				ball.randomize(canvas.width, canvas.height, 5); //resets ball
+				score = score + 1; //Points for hit
+				if ((Math.floor(Math.random() * 100) > 75) && (bonustype == 0)){ //25% chance of bonus pickup spawn
+				bonustype = 5; //Mode 5 means bonus is available to pick up
+				bonustime = 300; //sets a timer, if it expires the bonus disappears
+				bonus.randomize(canvas.width,canvas.height, 2); //Randomly places bonus with small velocity
+				}
+				if (explosion.collide(ship) == 1){ //U got blow'd up
+				score = score - 3; //lose points for blowing yourself up
+				bonus.kill(); //lose bonus pickup
+				bonustype = 0; //and/or bonus state
+				ship.kill(); //resets ship position to starting point
+				}
+			}
+			if ((ball.collide(ship) == 1) && (bonustype == 2)){ //In ramming mode,ship kills ball
+				ball.randomize(canvas.width, canvas.height, 5); //Resets ball
+				score = score + 1; //Points for killing ball.
+				}
+			
+window.addEventListener("keydown", function (event) {
+  if (event.defaultPrevented) {
+    return; // Do nothing if the event was already processed
+  }
+
+  switch (event.key) {  //movement keys change velocity
+    case "ArrowDown":
+      ship.vy = ship.vy + 1*thrustmultiplier; //adds to y velocity
+      break;
+    case "ArrowUp":
+      ship.vy = ship.vy - 1*thrustmultiplier; //subtracts from y velocity
+      break;
+    case "ArrowLeft":
+      ship.vx = ship.vx - 1*thrustmultiplier;//subtracts from x velocity
+      break;
+    case "ArrowRight": 
+      ship.vx = ship.vx + 1*thrustmultiplier; //adds to x velocity
+      break;
+	case "z": 
+		if (thrustmultiplier ==4){ //Z resets multiplier if at maximum
+		      thrustmultiplier = 1;
+			  } else {
+			  thrustmultiplier = thrustmultiplier +1; //otherwise Z increases
+			  } //thrust multiplier (sort of UI sensitivity)
+	  break;
+    case " ": // spacebar drops bomb
+      bomb.x = ship.x; //at ship location
+	  bomb.y = ship.y;
+	  bomb.vx = ship.vx;//with ship velocity
+	  bomb.vy = ship.vy;
+      break;
+	case "b": 
+		bonustype = 1;
+		bonustime = 1000000;
+	  break;
+	case "c": 
+		bonustype = 2;
+		bonustime = 1000000;
+	  break;
+	case "d": 
+		ball.s = ball.s * 2;
+	  break;
+    default:
+      return; // Quit when this doesn't handle the key event.
+  }
+  // Cancel the default action to avoid it being handled twice
+  event.preventDefault();
+}, true);
+// the last option dispatches the event to the listener first,
+// then dispatches event to window				
+}
+    </script>
+</body>
+
+</html>
