@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Boomi Bois MP by Andrew Kane</title>
+    <style>
+      body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+      #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+      #nameform { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 2; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+      
+      #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+      #nameinput { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+      
+      #input:focus { outline: none; }
+      #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages > li { padding: 0.5rem 1rem; }
+      #messages > li:nth-child(odd) { background: #efefef; }
+    </style>
+  </head>
+  <body>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io();
+        var updateplayerarray = [];
+        var updatebombarray = [];
+        var updatescorearray = [];
+        var updateblingarray = [];
+        var mycolor = "grey";
+        socket.on('whoami', function(whatsmyname) {
+          mycolor = whatsmyname;
+        });
+        socket.on('gameupdate', function(freshxyc) {
+          updateplayerarray = freshxyc[0];
+          updatebombarray = freshxyc[1];
+          updatescorearray = freshxyc[2];
+          updateblingarray = freshxyc[3];
+        });
+      </script>
+
+<canvas id="gameCanvas" width="1024" height="768"></canvas>
+<script>
+const FPS = 30;
+var canvas, context; 
+var score = 0;
+var bonustime = 0; //Timer (in frames) used to describe time left in bonus
+var bonustype = 0; //Tracks bonus state, 0 is no bonus
+canvas = document.getElementById("gameCanvas");      // load canvas
+  context = canvas.getContext("2d");
+  setInterval(update, 1000 / FPS);    		// set up interval (game loop)
+
+  function update() { //game loop
+    context.fillStyle = "black"; //background
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "teal"; //"safe zone" for spawning.  But also a hideout.
+    context.fillRect(canvas.width/2-100, canvas.height/2-100, 200, 200);
+    context.fillStyle = "black";
+    context.font = "32px Arial";
+    context.fillText("SAFE ZONE",canvas.width/2-88,canvas.height/2-64);
+    context.fillStyle = "yellow";
+    context.fillText("DANGER ZONE",canvas.width/2-108,canvas.height/2-128);
+    context.fillStyle = mycolor;
+    context.fillText("You are "+mycolor,canvas.width/2-108,64);
+    var i=0;
+    while(i<updateplayerarray.length){
+      var px = updateplayerarray[i][0];//player x
+      var py = updateplayerarray[i][1];//player y
+      context.fillStyle = updateplayerarray[i][2]; //color of player
+      context.fillRect(px-16, py-16, 32, 32);
+      var bx = updatebombarray[i][0];//bomb x.  Player and bomb arrays should be same length
+      var by = updatebombarray[i][1];//bomb y
+      var bs = updatebombarray[i][3];//bomb size
+      context.fillStyle = updatebombarray[i][2]; //color of bomb
+      context.fillRect(bx-bs/2, by-bs/2, bs, bs);// size can change
+      if (updatebombarray[i][2]!=="orange"){//if bomb not exploded...
+        context.fillStyle = updateplayerarray[i][2]; //color of player applied to bom
+        context.fillRect(bx-bs/4, by-bs/4, bs/2, bs/2);// size can change
+        }
+      context.fillStyle = updateplayerarray[i][2]; 
+      context.fillRect(0, 32+16*i, updatescorearray[i][0], 12);//score
+      console.log(updatescorearray);
+      i++;
+    }
+    var blx = updateblingarray[0][0];//bomb x.  Player and bomb arrays should be same length
+    var bly = updateblingarray[0][1];//bomb y
+    var bls = 48;
+    context.fillStyle = "yellow";
+    context.fillRect(blx-bls/2, bly-bls/2, bls, bls);// size can change
+    
+    //freshxyc[3];  
+  }
+window.addEventListener("keydown", function (event) {
+  if (event.defaultPrevented) {
+    return; // Do nothing if the event was already processed
+  }
+
+switch (event.key) {  //movement keys change velocity
+  case "ArrowDown":
+  socket.emit('gameinput', 0);
+    break;
+  case "ArrowUp":
+  socket.emit('gameinput',1);
+    break;
+  case "ArrowLeft":
+  socket.emit('gameinput',3);
+    break;
+  case "ArrowRight": 
+  socket.emit('gameinput',2);
+    break;
+  case "z": 
+    break;
+  case " ": // spacebar drops bomb
+  socket.emit('gameinput',4);
+    break;
+  case "b": 
+    break;
+  case "c": 
+    break;
+  case "d": 
+    break;
+  default:
+  return; // Quit when this doesn't handle the key event.
+}
+event.preventDefault();// Cancel the default action to avoid it being handled twice
+}, true);
+</script>
+
+
+  </body>
+</html>
